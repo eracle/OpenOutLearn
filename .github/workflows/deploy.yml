@@ -1,0 +1,60 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Install
+        run: uv pip install --system -e ".[dev]"
+
+      - name: Run tests
+        run: pytest
+
+  # Every green push to `main` is a release — same rule as OpenOutFind, OpenOutSend and
+  # OpenOutNews. The version is derived here, not committed, so it cannot drift out of
+  # sync with what actually shipped.
+  publish-pypi:
+    if: github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-latest
+    # Required: the PyPI trusted publisher is registered against this workflow filename
+    # *and* this environment name. Do not add a required reviewer to it — that would put
+    # every push behind a manual approval, which is the thing this job exists to remove.
+    environment: pypi
+    permissions:
+      id-token: write # PyPI trusted publishing
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the version is a commit count; a shallow clone cannot count
+
+      - name: Derive the version from the commit count
+        id: version
+        run: |
+          set -euo pipefail
+          base=$(grep -m1 '^version = ' pyproject.toml | cut -d'"' -f2 | cut -d. -f1,2)
+          patch=$(git rev-list --count HEAD)
+          version="${base}.${patch}"
+          echo "Releasing ${version}"
+          sed -i "0,/^version = .*/s//version = \"${version}\"/" pyproject.toml
+          echo "value=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Build sdist + wheel
+        run: pipx run build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true # a re-run of an already-published commit is a no-op

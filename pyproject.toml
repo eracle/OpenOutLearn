@@ -1,0 +1,52 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "openoutlearn"
+version = "0.1.0"
+description = "GP regression + BALD active-learning engine over text embeddings, shared by OpenOutFind and OpenOutNews."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "GPL-3.0-or-later"
+license-files = ["LICENCE.md"]
+authors = [{ name = "OpenOutreach", email = "hello@openoutreach.app" }]
+keywords = [
+    "active-learning",
+    "gaussian-process",
+    "bald",
+    "explore-exploit",
+    "embeddings",
+    "self-hosted",
+    "open-source",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "fastembed>=0.4,<1",
+    "scikit-learn>=1.4,<2",
+    "scipy>=1.11,<2",
+    "numpy>=1.26,<3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-mock>=3.14",
+]
+
+[project.urls]
+Homepage = "https://openoutreach.app"
+Source = "https://github.com/eracle/OpenOutLearn"
+Issues = "https://github.com/eracle/OpenOutLearn/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["openoutlearn"]
