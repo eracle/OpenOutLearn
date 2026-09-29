@@ -1,3 +1,5 @@
+![OpenOutLearn Logo](docs/logo.png)
+
 # OpenOutLearn
 
 A GP regression + BALD active-learning engine over text embeddings — the
