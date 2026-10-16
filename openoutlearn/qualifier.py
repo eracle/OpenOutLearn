@@ -20,6 +20,7 @@ Deliberately **not** here — these stay in each domain, subclassing ``GPBaldQua
 """
 from __future__ import annotations
 
+import copy
 import logging
 import time
 
@@ -176,6 +177,41 @@ class GPBaldQualifier:
             return None
         mean, std = gpr_predict(self._pipeline, embeddings)
         return prob_above_half(mean, std)
+
+    def out_of_fold_probs(self, indices, k: int = 5) -> np.ndarray | None:
+        """P(f > 0.5) for each observation in ``indices``, from a fit that never saw it.
+
+        ``indices`` point into the observations in the order they were added. They are
+        split into ``k`` folds; each fold is scored by a copy fitted on every *other*
+        observation, so a score never comes from a fit that saw its own label. A
+        subclass's ``_training_arrays``/``_maybe_balance`` apply to each copy as usual.
+
+        Deterministic: the folds and each copy's random state come from the seed alone, so
+        the same observations always give the same scores, whatever ran before.
+
+        Returns None when a fold's copy cannot be fitted.
+        """
+        indices = np.asarray(indices, dtype=np.int64)
+        probs = np.empty(len(indices), dtype=np.float64)
+        order = np.random.RandomState(self._seed).permutation(len(indices))
+        for n, fold in enumerate(np.array_split(order, min(k, len(indices)))):
+            fold_model = self._without(set(indices[fold].tolist()), seed=self._seed + n)
+            fold_probs = fold_model.predict_probs(np.array([self._X[i] for i in indices[fold]]))
+            if fold_probs is None:
+                return None
+            probs[fold] = fold_probs
+        return probs
+
+    def _without(self, held_out: set[int], seed: int) -> "GPBaldQualifier":
+        """A shallow copy holding every observation but ``held_out``, unfitted, with its
+        own random state — a shared one would make each fold depend on the last."""
+        fold_model = copy.copy(self)
+        fold_model._X = [x for i, x in enumerate(self._X) if i not in held_out]
+        fold_model._y = [y for i, y in enumerate(self._y) if i not in held_out]
+        fold_model._pipeline = None
+        fold_model._fitted = False
+        fold_model._rng = np.random.RandomState(seed)
+        return fold_model
 
     # ------------------------------------------------------------------
     # BALD acquisition via GP posterior

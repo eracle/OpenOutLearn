@@ -16,6 +16,15 @@ sampling, for exploration). `acquisition_mode`/`acquisition_scores` pick
 between the two by the current label balance — exploit once real negatives
 outnumber real positives, explore while the classes are still even.
 
+`openoutlearn.calibration` turns a score into a decision. From verdicts on a
+sample the model did not choose (stratified by score), `fit_rate_curve` fits the
+fit rate at each score as an isotonic regression; `break_even_rate` prices the
+alternative — searching for new candidates and judging those worth it — and
+`lowest_bar` returns the lowest score whose fit rate beats it. Costs are in
+whatever unit the caller uses; only their ratio matters. Score the sample with
+`GPBaldQualifier.out_of_fold_probs` so no score comes from a fit that saw its
+own label.
+
 This is a pure library: no store, no ORM, no CLI, no persistence beyond the
 fastembed model download. Each domain wires its own labels, its own store,
 and its own interactive surface on top — see `openoutlearn/qualifier.py`'s

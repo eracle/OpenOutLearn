@@ -30,7 +30,18 @@ that extraction happened.
 whatever labelled embeddings a caller gives it, and scores new candidates two ways:
 `predict_probs` (P(f > 0.5) from the GP posterior, for exploitation) and `compute_bald`
 (information gain via MC sampling, for exploration). `acquisition_mode`/`acquisition_scores`
-switch between the two by the current label balance.
+switch between the two by the current label balance. `out_of_fold_probs` scores a labelled subset
+with k fold copies, each seeded, so no score comes from a fit that saw its own label and the same
+labels always give the same scores.
+
+`openoutlearn/calibration.py` turns a score into a decision, from verdicts on a sample the model
+did not choose: `fit_rate_curve` (isotonic regression of verdicts on out-of-fold scores — no
+weights, since stratifying on the score does not bias the rate at a score), `search_rate` /
+`break_even_rate` (the best fits per unit cost of searching for new candidates and judging those
+worth it — the marginal value theorem's rule), and `lowest_bar` (the lowest score whose fit rate
+beats the break-even). It is unit-free: OpenOutFind prices both moves in dollars (machine hours
+plus the LLM's bill) and owns the sample, the costs and the store. Drawing the sample is domain
+work and stays out of here.
 
 **This is deliberately a plain library — no store, no ORM, no CLI, no persistence beyond the
 fastembed model download.** An interactive "pass text, see a score" loop needs state across
