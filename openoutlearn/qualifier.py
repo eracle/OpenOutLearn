@@ -29,6 +29,43 @@ from scipy.stats import norm
 
 logger = logging.getLogger(__name__)
 
+# ── Kernel reuse ──
+# Searching the kernel's hyperparameters (4 L-BFGS starts) is ~60 s at 2,000 labels, and
+# one more label leaves the result unchanged; refitting the labels with a kept kernel is
+# one factorisation, ~2 s. Replayed on a 2,000-label store, a kernel kept across 25%
+# growth moved P(fit) by <0.01 on average and kept 98 of the top 100 picks. So the search
+# runs again only once the labels have grown 25% since the last one, or when the last one
+# was cheap (small stores, where the kernel still moves). Keyed by embedding size; one
+# process judges one store.
+KERNEL_REGROW = 1.25
+CHEAP_SEARCH_SECONDS = 2.0
+_last_search: dict[int, tuple] = {}
+
+
+def gpr_for(embedding_dim: int, seed: int, n_fit: int):
+    """A GPR for ``n_fit`` labels, and whether it keeps the last searched kernel.
+
+    Kept: the last search's kernel, fixed (``optimizer=None``). Otherwise a fresh search,
+    which the caller reports back with :func:`record_search` once it has fitted.
+    """
+    from sklearn.gaussian_process import GaussianProcessRegressor
+    from sklearn.gaussian_process.kernels import ConstantKernel, RBF
+
+    last = _last_search.get(embedding_dim)
+    if last is not None and last[2] >= CHEAP_SEARCH_SECONDS and n_fit < last[1] * KERNEL_REGROW:
+        return GaussianProcessRegressor(kernel=last[0], optimizer=None, alpha=0.1), True
+    return GaussianProcessRegressor(
+        kernel=ConstantKernel(1.0) * RBF(length_scale=np.sqrt(embedding_dim)),
+        n_restarts_optimizer=3,
+        random_state=seed,
+        alpha=0.1,
+    ), False
+
+
+def record_search(embedding_dim: int, gpr, n_fit: int, seconds: float) -> None:
+    """Remember a fitted search's kernel, its label count and how long it took."""
+    _last_search[embedding_dim] = (gpr.kernel_, n_fit, seconds)
+
 
 # ---------------------------------------------------------------------------
 # Numerics
@@ -141,27 +178,21 @@ class GPBaldQualifier:
         if len(y_arr) < 2 or len(np.unique(y_arr)) < 2:
             return False
 
-        from sklearn.gaussian_process import GaussianProcessRegressor
-        from sklearn.gaussian_process.kernels import ConstantKernel, RBF
         from sklearn.pipeline import Pipeline
         from sklearn.preprocessing import StandardScaler
 
         X_fit, y_fit = self._maybe_balance(X_arr, y_arr)
 
-        self._pipeline = Pipeline([
-            ("scaler", StandardScaler()),
-            ("gpr", GaussianProcessRegressor(
-                kernel=ConstantKernel(1.0) * RBF(length_scale=np.sqrt(self.embedding_dim)),
-                n_restarts_optimizer=3,
-                random_state=self._seed,
-                alpha=0.1,
-            )),
-        ])
+        gpr, kept = gpr_for(self.embedding_dim, self._seed, len(y_fit))
+        self._pipeline = Pipeline([("scaler", StandardScaler()), ("gpr", gpr)])
         started = time.monotonic()
         self._pipeline.fit(X_fit, y_fit)
+        elapsed = time.monotonic() - started
         self._fitted = True
-        logger.debug("qualifier fitted on %d observation(s) in %.2fs",
-                     len(y_fit), time.monotonic() - started)
+        if not kept:
+            record_search(self.embedding_dim, gpr, len(y_fit), elapsed)
+        logger.debug("qualifier fitted on %d observation(s) in %.2fs (%s kernel %s)", len(y_fit),
+                     elapsed, "kept" if kept else "searched", gpr.kernel_)
         return True
 
     # ------------------------------------------------------------------

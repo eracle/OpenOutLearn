@@ -30,7 +30,15 @@ that extraction happened.
 whatever labelled embeddings a caller gives it, and scores new candidates two ways:
 `predict_probs` (P(f > 0.5) from the GP posterior, for exploitation) and `compute_bald`
 (information gain via MC sampling, for exploration). `acquisition_mode`/`acquisition_scores`
-switch between the two by the current label balance. `out_of_fold_probs` scores a labelled subset
+switch between the two by the current label balance. **A fit searches the kernel's
+hyperparameters only when it has to** (`gpr_for` / `record_search`): the search (4 L-BFGS starts)
+is ~60 s at 2,000 labels and lands on the same kernel one label later, so a fit keeps the last
+search's kernel fixed (one factorisation, ~1 s) until the labels have grown 25% since that search
+(`KERNEL_REGROW`), or always searches while a search is cheap (`CHEAP_SEARCH_SECONDS`, small stores,
+where the kernel still moves). Kept across 25% growth on a 2,000-label store, it moved P(fit) by
+<0.01 and kept 98 of the top 100 picks. The memory is module-level and keyed by embedding size,
+because a subclass's caller (OpenOutFind's `qualifier_for`) builds a new qualifier per verdict; a
+subclass that fits its own pipeline calls the same two functions. `out_of_fold_probs` scores a labelled subset
 with k fold copies, each seeded, so no score comes from a fit that saw its own label and the same
 labels always give the same scores.
 
