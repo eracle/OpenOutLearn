@@ -6,7 +6,9 @@ A GP regression + BALD active-learning engine over text embeddings — the
 scoring mechanism shared by [OpenOutFind](https://github.com/eracle/OpenOutFind)'s
 lead qualifier and [OpenOutNews](https://github.com/eracle/OpenOutNews)'s
 article qualifier, extracted once both had converged on the same code under
-two different domain labels.
+two different domain labels. In production it picks the leads behind
+[openoutreach.app](https://openoutreach.app/?utm_source=github&utm_medium=readme&utm_campaign=openoutlearn),
+where ten are free.
 
 `GPBaldQualifier` fits an sklearn Pipeline (StandardScaler -> exact
 GaussianProcessRegressor) on whatever labelled embeddings you give it, and
