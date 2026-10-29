@@ -17,6 +17,10 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_MODEL = "BAAI/bge-small-en-v1.5"
 
+# Texts per batch. Measured on 130 real profiles, sorted by length: 16 took 28s, 32 35s,
+# 64 49s; unsorted at fastembed's default of 256, 90s.
+EMBED_BATCH = 16
+
 _model = None
 _model_name = None
 
@@ -46,7 +50,18 @@ def embed_text(text: str, *, model_name: str = DEFAULT_MODEL, cache_dir: Path) -
 
 
 def embed_texts(texts: list[str], *, model_name: str = DEFAULT_MODEL, cache_dir: Path) -> np.ndarray:
-    """Embed multiple texts → (N, 384) numpy array."""
+    """Embed multiple texts → (N, 384) numpy array, in the order given.
+
+    A batch is padded to its longest text, so the texts are embedded shortest first in
+    small batches and put back in order: the same vectors, a third of the time on a page
+    of Lead Finder profiles (one 2,681-character profile no longer pads 129 short ones).
+    """
+    if not texts:
+        return np.empty((0, 0), dtype=np.float32)
     model = _get_model(model_name, cache_dir)
-    embeddings = list(model.embed(texts))
-    return np.array(embeddings, dtype=np.float32)
+    order = sorted(range(len(texts)), key=lambda i: len(texts[i]))
+    vectors = np.array(list(model.embed([texts[i] for i in order], batch_size=EMBED_BATCH)),
+                       dtype=np.float32)
+    in_order = np.empty_like(vectors)
+    in_order[order] = vectors
+    return in_order

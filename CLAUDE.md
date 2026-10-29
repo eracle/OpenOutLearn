@@ -18,7 +18,10 @@
 
 `openoutlearn` is a GP regression + BALD active-learning engine over text embeddings —
 `GPBaldQualifier` (`openoutlearn/qualifier.py`) plus `embed_text`/`embed_texts`
-(`openoutlearn/embeddings.py`, a fastembed wrapper). It's the scoring mechanism shared by
+(`openoutlearn/embeddings.py`, a fastembed wrapper — `embed_texts` embeds shortest text first in
+batches of `EMBED_BATCH` (16) and hands the vectors back in the caller's order, since a batch pads
+to its longest text: on a page of Lead Finder profiles, one 2,681-character profile padding 129
+short ones made it 3× slower, with identical vectors). It's the scoring mechanism shared by
 [OpenOutFind](https://github.com/eracle/OpenOutFind)'s lead qualifier (`BayesianQualifier`) and
 [OpenOutNews](https://github.com/eracle/OpenOutNews)'s article qualifier
 (`EngagementQualifier`) — extracted once both repos had converged on identical code under two
