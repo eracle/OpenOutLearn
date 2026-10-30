@@ -126,3 +126,19 @@ def test_record_search_remembers_the_fitted_kernel_and_its_size(kernel_memory):
     record_search(4, gpr, 4, 12.5)
 
     assert kernel_memory[4] == (gpr.kernel_, 4, 12.5)
+
+
+def test_labels_mostly_negative_still_rank(kernel_memory):
+    """At 9% positives an uncentred GP explains the labels as a constant
+    (``RBF(length_scale=3.2e4)``) and scores everyone alike; centred, it ranks."""
+    rng = np.random.RandomState(0)
+    X = rng.randn(300, 32)
+    y = (X[:, 0] > 1.2).astype(int)
+    q = GPBaldQualifier(seed=42, embedding_dim=32)
+    q.warm_start(X, y)
+
+    near, far = np.zeros((1, 32)), np.zeros((1, 32))
+    near[0, 0], far[0, 0] = 2.0, -2.0
+
+    assert q.predict_probs(near)[0] > 0.9
+    assert q.predict_probs(far)[0] < 0.1

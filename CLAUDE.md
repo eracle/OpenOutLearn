@@ -33,7 +33,12 @@ that extraction happened.
 whatever labelled embeddings a caller gives it, and scores new candidates two ways:
 `predict_probs` (P(f > 0.5) from the GP posterior, for exploitation) and `compute_bald`
 (information gain via MC sampling, for exploration). `acquisition_mode`/`acquisition_scores`
-switch between the two by the current label balance. **A fit searches the kernel's
+switch between the two by the current label balance. **The GP centres its labels**
+(`normalize_y=True` in `gpr_for`): with a zero prior mean, labels mostly 0 are best explained
+as a constant near the base rate, and on 445 verdicts at 12% fits the kernel search landed on
+`RBF(length_scale=3.2e4)`, a flat score that ranked everyone alike; centred, the same labels give
+`RBF(9.6)` and rank as well as a balanced subsample (out-of-fold AUC 0.71) with every label kept.
+**A fit searches the kernel's
 hyperparameters only when it has to** (`gpr_for` / `record_search`): the search (4 L-BFGS starts)
 is ~60 s at 2,000 labels and lands on the same kernel one label later, so a fit keeps the last
 search's kernel fixed (one factorisation, ~1 s) until the labels have grown 25% since that search

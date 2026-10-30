@@ -47,18 +47,27 @@ def gpr_for(embedding_dim: int, seed: int, n_fit: int):
 
     Kept: the last search's kernel, fixed (``optimizer=None``). Otherwise a fresh search,
     which the caller reports back with :func:`record_search` once it has fitted.
+
+    ``normalize_y``: the GP fits the labels about their mean. Without it the prior mean
+    is 0, and on labels mostly 0 the search's best explanation is a constant near the
+    base rate — on 445 verdicts with 12% fits it found ``RBF(length_scale=3.2e4)``, a
+    flat score, and every candidate ranked alike. Centred, the same labels give
+    ``RBF(9.6)`` and rank as well as a balanced subsample did (out-of-fold AUC 0.71),
+    with every label kept.
     """
     from sklearn.gaussian_process import GaussianProcessRegressor
     from sklearn.gaussian_process.kernels import ConstantKernel, RBF
 
     last = _last_search.get(embedding_dim)
     if last is not None and last[2] >= CHEAP_SEARCH_SECONDS and n_fit < last[1] * KERNEL_REGROW:
-        return GaussianProcessRegressor(kernel=last[0], optimizer=None, alpha=0.1), True
+        return GaussianProcessRegressor(kernel=last[0], optimizer=None, alpha=0.1,
+                                        normalize_y=True), True
     return GaussianProcessRegressor(
         kernel=ConstantKernel(1.0) * RBF(length_scale=np.sqrt(embedding_dim)),
         n_restarts_optimizer=3,
         random_state=seed,
         alpha=0.1,
+        normalize_y=True,
     ), False
 
 
